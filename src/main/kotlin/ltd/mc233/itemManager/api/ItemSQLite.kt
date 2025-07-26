@@ -33,7 +33,7 @@ object ItemSQLite {
 
     val tablePack = Table("${name}_data", host) {
         add("item") {
-            type(ColumnTypeSQLite.TEXT, 512)    // 物品数据文本类型，最大512字符
+            type(ColumnTypeSQLite.TEXT, 512)    // 物品Base64字符串
         }
         add("region") {
             type(ColumnTypeSQLite.INTEGER)      // 类别id
@@ -55,13 +55,21 @@ object ItemSQLite {
 
     fun getItems() {
         tablePack.select(dataSource) {
-            rows("item","region","slot")
+            rows("item", "region", "slot")
         }.map {
+            ItemAPI.itemDatas.add(ItemData(getString("item").base64ToItem(), getInt("region"), getInt("slot")))
         }
     }
 
-    fun saveItems() {
-
+    fun saveItems(itemDatas: HashSet<ItemData>) {
+        tablePack.delete(dataSource) {
+            this.elements
+        }
+        itemDatas.forEach {
+            tablePack.insert(dataSource, "item", "region", "slot") {
+                value(it.item.itemToBase64(), it.region, it.slot)
+            }
+        }
     }
 
 
