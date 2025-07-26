@@ -1,0 +1,20 @@
+
+
+#         Powered by TabooLib 6.0         #
+
+# 看不懂这些东西的话别乱动，尤其是database下面的东西。
+
+options:
+  check-update: true
+  message: true
+database:
+  source:
+    mysql:
+      host: localhost
+      port: 3306
+      user: ygub
+      password: 91983290
+      database: minecraft
+loader:
+  packs-files:
+    - ''
