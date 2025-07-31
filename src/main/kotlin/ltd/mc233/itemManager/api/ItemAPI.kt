@@ -1,43 +1,45 @@
 package ltd.mc233.itemManager.api
 
-import org.bukkit.NamespacedKey
-import org.bukkit.inventory.ItemStack
-import org.bukkit.persistence.PersistentDataType
 
+import ltd.mc233.itemManager.system.Util.base64ToItem
+import ltd.mc233.itemManager.system.Util.itemToBase64
+import org.bukkit.Material
+import org.bukkit.inventory.Inventory
+import org.bukkit.inventory.ItemStack
 
 object ItemAPI {
-    val itemDatas = HashSet<ItemData>(1000)
-    val items = HashSet<ItemStack>(1000)
-    val itemMap = HashMap<String, ItemStack>(1000)
-    val itemId = NamespacedKey("pl_att", "item_id")
-    fun loadItems() {
-        ItemSQLite.getItems()
-        itemDatas.forEach {
-            items.add(it.item)
-            val id = it.item.persistentDataContainer.get(itemId, PersistentDataType.STRING)
-                ?: return@forEach
-            itemMap[id] = it.item.clone()
+    fun saveItems(region: Regions, inv: Inventory) {
+        // 先删除该区域的所有物品
+        ItemSqlite.table.delete(ItemSqlite.dataSource) {
+            where("region" eq region.id)
         }
+        // 保存新的物品数据
+        for (i in 0 until inv.size) {
+            val item = inv.getItem(i) ?: continue
+            if (item.type != Material.AIR) {
+                ItemSqlite.table.insert(ItemSqlite.dataSource, "region", "slot", "item") {
+                    value(region.id, i, item.itemToBase64())
+                }
+            }
+        }
+    }
+    // 获取某个区域的所有物品
+    fun getItems(region: Regions): MutableMap<Int, ItemStack> {
+        val items = mutableMapOf<Int, ItemStack>()
+        ItemSqlite.table.select(ItemSqlite.dataSource) {
+            rows("slot", "item")
+            where("region" eq region.id)
+        }.forEach {
+            val slot = getInt("slot")
+            val itemBase64 = getString("item")
+            try {
+                items[slot] = itemBase64.base64ToItem()
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+        return items
     }
 
-    fun saveItems() {
-        items.clear()
-        itemDatas.forEach {
-            items.add(it.item)
-        }
-        ItemSQLite.saveItems(itemDatas)
-    }
+
 }
-
-
-//┌─────────────────┐
-//│   玩家界面GUI    │  ← 玩家看到的物品展示界面
-//├─────────────────┤
-//│   业务逻辑层     │  ← 处理物品加载、保存、分类等逻辑
-//├─────────────────┤
-//│   数据库操作层   │  ← 负责与SQLite数据库交互
-//├─────────────────┤
-//│   SQLite数据库   │  ← 持久化存储物品数据
-//└─────────────────┘
-
-

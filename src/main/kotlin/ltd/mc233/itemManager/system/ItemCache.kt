@@ -1,4 +1,4 @@
-package ltd.mc233.itemManager
+package ltd.mc233.itemManager.system
 
 import org.bukkit.Material
 import taboolib.platform.util.buildItem
