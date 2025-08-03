@@ -1,17 +1,36 @@
 package ltd.mc233.itemManager.system
 
-
 import ltd.mc233.itemManager.api.ItemAPI
 import ltd.mc233.itemManager.api.Regions
+import ltd.mc233.itemManager.system.Util.regions
 import org.bukkit.entity.Player
 import org.bukkit.event.inventory.InventoryCloseEvent
+import org.bukkit.inventory.ItemStack
 import taboolib.library.xseries.XMaterial
 import taboolib.module.ui.openMenu
 import taboolib.module.ui.type.StorableChest
 import taboolib.platform.util.buildItem
+import java.util.*
 
 object Screen {
+    // 添加临时存储
+    val tempItems = HashMap<UUID, MutableMap<Int, ItemStack?>>()
+    val currentRegion = HashMap<UUID, Regions>()
+
     fun open(player: Player, region: Regions, pageNum: Int = 0) {
+        val uuid = player.uniqueId
+
+        // 初始化临时存储
+        if (tempItems[uuid] == null) {
+            tempItems[uuid] = HashMap()
+            currentRegion[uuid] = region
+            // 加载数据到临时存储
+            val savedItems = ItemAPI.getItems(region)
+            savedItems.forEach { (slot, item) ->
+                tempItems[uuid]!![slot] = item
+            }
+        }
+
         player.openMenu<StorableChest>("${region.displayName} §8- §7第${pageNum + 1}页") {
             // 设置6行界面 (54槽位)
             rows(6)
@@ -20,14 +39,16 @@ object Screen {
             val itemsPerPage = 45
             val startSlot = pageNum * itemsPerPage
 
-            // 加载该区域已保存的物品
-            val savedItems = ItemAPI.getItems(region)
-            val totalItems = savedItems.size
+            // 从临时存储获取物品数量和数据
+            val totalItems = tempItems[uuid]!!.values.count { it != null }
             val totalPages = (totalItems + itemsPerPage - 1) / itemsPerPage
 
-            // 显示当前页的物品
-            savedItems.entries.drop(startSlot).take(itemsPerPage).forEachIndexed { index, (originalSlot, item) ->
-                set(index, item) {
+            // 从临时存储显示当前页的物品
+            for (i in 0 until itemsPerPage) {
+                val actualSlot = startSlot + i
+                val item = tempItems[uuid]!![actualSlot]
+                if (item != null) {
+                    set(i, item) { }
                 }
             }
 
@@ -38,6 +59,18 @@ object Screen {
             onClose { event ->
                 saveToRegion(event, region, player, pageNum)
             }
+
+            // 添加全局点击事件处理
+            onClick { event ->
+                val clickedSlot = event.rawSlot
+                // 只有功能按钮区域 (45-53) 禁止操作，其他都允许
+                event.isCancelled = clickedSlot in 45..53
+                if (clickedSlot < 45 && event.clickEvent().isRightClick) {
+                    event.isCancelled = true
+                    val actualSlot = pageNum * 45 + clickedSlot // 计算原始槽位
+                    Recipe.attSet(player, event.currentItem, actualSlot)
+                }
+            }
         }
     }
 
@@ -45,17 +78,18 @@ object Screen {
         val bottomRow = 45 // 第6行起始位置
         // 上一页按钮
         if (currentPage > 0) {
-            set(bottomRow, buildItem(XMaterial.ARROW) {
+            set(bottomRow, buildItem(ItemCache.lastPage) {
                 name = "§a上一页"
                 lore += "§7当前页: §f${currentPage + 1}/$totalPages"
                 lore += "§7点击查看上一页"
             }) {
+                // 保存当前页到临时存储
+                saveCurrentPageToTemp(player, currentPage)
                 open(player, region, currentPage - 1)
-            }
-        } else {
-            set(bottomRow, ItemCache.bar) {
                 isCancelled = true
             }
+        } else {
+            set(bottomRow, ItemCache.bar) { }
         }
 
         // 返回主菜单按钮
@@ -85,77 +119,107 @@ object Screen {
             lore += "§c§l注意: 此操作不可撤销!"
             lore += "§c将清空所有 $totalItems 个物品"
         }) {
-            isCancelled = true
             // 清空数据库中的记录 - 创建空背包保存
             //val emptyInv = org.bukkit.Bukkit.createInventory(null, 45)
             //ItemAPI.saveItems(region, emptyInv)
             //player.sendMessage("§a已清空 ${region.displayName} §a区域的所有 $totalItems 个物品!")
             // 重新打开第一页来刷新界面
             player.sendMessage("§c没写！")
-            open(player, region, 0)
         }
 
         // 下一页按钮
         if (currentPage < totalPages - 1) {
-            set(bottomRow + 8, buildItem(XMaterial.ARROW) {
+            set(bottomRow + 8, buildItem(ItemCache.nextPage) {
                 name = "§a下一页"
                 lore += "§7当前页: §f${currentPage + 1}/$totalPages"
                 lore += "§7点击查看下一页"
             }) {
+                // 保存当前页到临时存储
+                saveCurrentPageToTemp(player, currentPage)
                 open(player, region, currentPage + 1)
             }
         } else {
-            set(bottomRow + 8,ItemCache.bar) {
-                isCancelled = true
-            }
+            set(bottomRow + 8, ItemCache.bar) { }
         }
 
         // 填充其他空槽位
         for (i in listOf(bottomRow + 2, bottomRow + 3, bottomRow + 5, bottomRow + 6)) {
-            set(i, ItemCache.bar) {
-                isCancelled = true
+            set(i, ItemCache.bar) { }
+        }
+    }
+
+    // 保存当前页到临时存储
+    private fun saveCurrentPageToTemp(player: Player, currentPage: Int) {
+        val uuid = player.uniqueId
+        val inv = player.openInventory.topInventory
+        val itemsPerPage = 45
+        val startSlot = currentPage * itemsPerPage
+
+        for (i in 0 until 45) {
+            val item = inv.getItem(i)
+            val actualSlot = startSlot + i
+            if (item != null && item.type != org.bukkit.Material.AIR) {
+                val region = currentRegion[uuid] ?: Regions.COMMON_ITEMS
+                item.regions = region
+                tempItems[uuid]!![actualSlot] = item
+            } else {
+                tempItems[uuid]!![actualSlot] = null
             }
         }
     }
 
     private fun saveToRegion(event: InventoryCloseEvent, region: Regions, player: Player, currentPage: Int) {
         try {
+            val uuid = player.uniqueId
             val itemsPerPage = 45
             val startSlot = currentPage * itemsPerPage
 
-            // 获取现有的所有物品
-            val existingItems = ItemAPI.getItems(region).toMutableMap()
-
-            // 清除当前页对应的物品槽位
-            val keysToRemove = existingItems.keys.filter { it >= startSlot && it < startSlot + itemsPerPage }
-            keysToRemove.forEach { existingItems.remove(it) }
-
-            // 添加界面中的新物品
+            // 更新当前页到临时存储
             for (i in 0 until 45) {
                 val item = event.inventory.getItem(i)
+                val actualSlot = startSlot + i
                 if (item != null && item.type != org.bukkit.Material.AIR) {
-                    existingItems[startSlot + i] = item
+                    item.regions = region
+                    tempItems[uuid]!![actualSlot] = item
+                } else {
+                    tempItems[uuid]!![actualSlot] = null
                 }
             }
 
-            // 创建临时背包保存所有物品
-            val maxSlot = existingItems.keys.maxOrNull() ?: 0
-            val tempSize = ((maxSlot / 9) + 1) * 9 // 向上取整到9的倍数
+            // 从临时存储保存到数据库
+            val maxSlot = tempItems[uuid]!!.keys.filter { tempItems[uuid]!![it] != null }.maxOrNull() ?: 0
+            val tempSize = ((maxSlot / 9) + 1) * 9
             val tempInventory = org.bukkit.Bukkit.createInventory(null, minOf(tempSize, 54))
 
-            existingItems.forEach { (slot, item) ->
-                if (slot < tempInventory.size) {
+            tempItems[uuid]!!.forEach { (slot, item) ->
+                if (slot < tempInventory.size && item != null) {
                     tempInventory.setItem(slot, item)
                 }
             }
 
             // 保存到数据库
             ItemAPI.saveItems(region, tempInventory)
-            player.sendMessage("§a第${currentPage + 1}页物品已保存到 ${region.displayName} §a区域!")
+            cleanup(player) // 清理数据
 
         } catch (e: Exception) {
             player.sendMessage("§c保存物品时发生错误: ${e.message}")
             e.printStackTrace()
         }
+    }
+
+    // 更新临时存储中的物品
+    fun updateTempItem(player: Player, slot: Int, item: ItemStack) {
+        val uuid = player.uniqueId
+        if (tempItems[uuid] == null) {
+            tempItems[uuid] = HashMap()
+        }
+        tempItems[uuid]!![slot] = item
+    }
+
+    // 清理玩家数据
+    fun cleanup(player: Player) {
+        val uuid = player.uniqueId
+        tempItems.remove(uuid)
+        currentRegion.remove(uuid)
     }
 }

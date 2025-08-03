@@ -1,0 +1,278 @@
+package ltd.mc233.examples
+
+import ltd.mc233.itemManager.extensions.*
+import org.bukkit.entity.Player
+import org.bukkit.event.EventHandler
+import org.bukkit.event.Listener
+import org.bukkit.event.player.PlayerInteractEntityEvent
+import taboolib.common.platform.event.SubscribeEvent
+import taboolib.module.ui.openMenu
+import taboolib.module.ui.type.Basic
+import taboolib.platform.util.buildItem
+import taboolib.library.xseries.XMaterial
+
+// 商店系统示例
+object ShopSystem : Listener {
+
+    // NPC商店界面
+    fun openShop(player: Player) {
+        player.openMenu<Basic>("§6§l商店") {
+            map(
+                "#########",
+                "# 1 2 3 #",
+                "# 4 5 6 #",
+                "# 7 8 9 #",
+                "#########"
+            )
+
+            set('#', buildItem(XMaterial.BLACK_STAINED_GLASS_PANE) {
+                name = " "
+            }) { isCancelled = true }
+
+            // 武器区
+            set('1', buildItem(XMaterial.IRON_SWORD) {
+                name = "§b铁剑"
+                lore += "§7价格: §e100金币"
+                lore += "§7点击购买"
+            }) {
+                buyItem(player, "iron_sword", "gold_coin", 100, "§b铁剑")
+            }
+
+            set('2', buildItem(XMaterial.DIAMOND_SWORD) {
+                name = "§c钻石剑"
+                lore += "§7价格: §e500金币"
+                lore += "§7点击购买"
+            }) {
+                buyItem(player, "diamond_sword", "gold_coin", 500, "§c钻石剑")
+            }
+
+            set('3', buildItem(XMaterial.NETHERITE_SWORD) {
+                name = "§5传说之剑"
+                lore += "§7价格: §e1000金币 + §c10红宝石"
+                lore += "§7点击购买"
+            }) {
+                buyLegendarySword(player)
+            }
+
+            // 消耗品区
+            set('4', buildItem(XMaterial.COOKED_BEEF) {
+                name = "§a牛排"
+                lore += "§7价格: §e5金币"
+                lore += "§7点击购买 (一次买10个)"
+            }) {
+                buyItem(player, "cooked_beef", "gold_coin", 50, "§a牛排", 10)
+            }
+
+            set('5', buildItem(XMaterial.POTION) {
+                name = "§d生命药水"
+                lore += "§7价格: §e20金币"
+                lore += "§7点击购买"
+            }) {
+                buyItem(player, "health_potion", "gold_coin", 20, "§d生命药水")
+            }
+
+            set('6', buildItem(XMaterial.EXPERIENCE_BOTTLE) {
+                name = "§b经验瓶"
+                lore += "§7价格: §e30金币"
+                lore += "§7点击购买 (一次买5个)"
+            }) {
+                buyItem(player, "exp_bottle", "gold_coin", 150, "§b经验瓶", 5)
+            }
+
+            // 材料区
+            set('7', buildItem(XMaterial.IRON_INGOT) {
+                name = "§7铁锭"
+                lore += "§7价格: §e10金币"
+                lore += "§7点击购买 (一次买5个)"
+            }) {
+                buyItem(player, "iron_ingot", "gold_coin", 50, "§7铁锭", 5)
+            }
+
+            set('8', buildItem(XMaterial.DIAMOND) {
+                name = "§b钻石"
+                lore += "§7价格: §e100金币"
+                lore += "§7点击购买"
+            }) {
+                buyItem(player, "diamond", "gold_coin", 100, "§b钻石")
+            }
+
+            set('9', buildItem(XMaterial.EMERALD) {
+                name = "§a翡翠"
+                lore += "§7价格: §e200金币"
+                lore += "§7点击购买"
+            }) {
+                buyItem(player, "emerald", "gold_coin", 200, "§a翡翠")
+            }
+        }
+    }
+
+    // 普通购买逻辑
+    private fun buyItem(player: Player, itemId: String, currencyId: String, price: Int, itemName: String, amount: Int = 1) {
+        // 检查货币是否足够
+        if (!player.hasItem(currencyId, price)) {
+            val currentAmount = player.getItemCount(currencyId)
+            player.sendMessage("§c金币不足! 需要${price}个，你只有${currentAmount}个")
+            return
+        }
+
+        // 扣除货币
+        if (player.takeItem(currencyId, price)) {
+            // 给予物品
+            player.giveItems(itemId, amount)
+            player.sendMessage("§a购买成功! 获得 ${itemName} x${amount}")
+        } else {
+            player.sendMessage("§c购买失败!")
+        }
+    }
+
+    // 复杂购买逻辑 - 传说之剑需要多种货币
+    private fun buyLegendarySword(player: Player) {
+        // 检查是否有足够的金币和红宝石
+        if (!player.hasAllItems("gold_coin", 1000, "ruby", 10)) {
+            player.sendMessage("§c材料不足!")
+            player.sendMessage("§7需要: §e1000金币 + §c10红宝石")
+            player.sendMessage("§7拥有: §e${player.getItemCount("gold_coin")}金币 + §c${player.getItemCount("ruby")}红宝石")
+            return
+        }
+
+        // 扣除材料
+        if (player.takeItems("gold_coin", 1000, "ruby", 10)) {
+            // 给予传说之剑
+            player.giveItems("legendary_sword", 1)
+            player.sendMessage("§a§l购买成功! 获得传说之剑!")
+            player.sendMessage("§e恭喜你获得了传说级武器!")
+        } else {
+            player.sendMessage("§c购买失败!")
+        }
+    }
+
+    // 右键NPC触发商店
+    @SubscribeEvent
+    fun onRightClickNPC(event: PlayerInteractEntityEvent) {
+        val entity = event.rightClicked
+        val player = event.player
+
+        // 检查是否是商店NPC (这里假设NPC有特定的名字)
+        if (entity.customName == "§6商店老板") {
+            event.isCancelled = true
+            openShop(player)
+        }
+    }
+}
+
+// 任务系统示例
+object QuestSystem {
+
+    // 每日任务
+    fun dailyQuest(player: Player) {
+        player.sendMessage("§e=== 每日任务 ===")
+
+        // 任务1: 收集材料
+        if (player.hasAllItems("wood", 10, "stone", 20)) {
+            player.takeItems("wood", 10, "stone", 20)
+            player.giveItems("gold_coin", 100, "exp_bottle", 3)
+            player.sendMessage("§a任务完成: 收集材料! 获得100金币和3个经验瓶")
+        } else {
+            player.sendMessage("§7任务: 收集10个木头和20个石头")
+            player.sendMessage("§7进度: 木头${player.getItemCount("wood")}/10, 石头${player.getItemCount("stone")}/20")
+        }
+
+        // 任务2: 击败怪物
+        if (player.hasItem("monster_core", 5)) {
+            player.takeItems("monster_core", 5)
+            player.giveItems("ruby", 2, "diamond", 1)
+            player.sendMessage("§a任务完成: 击败怪物! 获得2个红宝石和1个钻石")
+        } else {
+            player.sendMessage("§7任务: 收集5个怪物核心")
+            player.sendMessage("§7进度: ${player.getItemCount("monster_core")}/5")
+        }
+    }
+
+    // 主线任务
+    fun mainQuest(player: Player, questId: Int) {
+        when (questId) {
+            1 -> {
+                // 新手任务
+                player.giveItems("starter_sword", 1, "bread", 10, "gold_coin", 50)
+                player.sendMessage("§a新手任务完成! 获得新手装备")
+            }
+
+            2 -> {
+                // 进阶任务 - 需要交付物品
+                if (player.hasAllItems("iron_ingot", 5, "coal", 10)) {
+                    player.takeItems("iron_ingot", 5, "coal", 10)
+                    player.giveItems("iron_sword", 1, "gold_coin", 200)
+                    player.sendMessage("§a进阶任务完成! 获得铁剑")
+                } else {
+                    player.sendMessage("§c任务物品不足: 需要5个铁锭和10个煤炭")
+                }
+            }
+
+            3 -> {
+                // 高级任务 - 大量奖励
+                if (player.hasAllItems("rare_gem", 3, "magic_crystal", 1)) {
+                    player.takeItems("rare_gem", 3, "magic_crystal", 1)
+                    player.giveItems(
+                        "legendary_armor", 1,
+                        "gold_coin", 1000,
+                        "ruby", 5,
+                        "exp_bottle", 10
+                    )
+                    player.sendMessage("§a§l高级任务完成! 获得传说装备和丰厚奖励!")
+                } else {
+                    player.sendMessage("§c任务物品不足: 需要3个稀有宝石和1个魔法水晶")
+                }
+            }
+        }
+    }
+}
+
+// 合成系统示例
+object CraftSystem {
+
+    // 武器合成
+    fun craftWeapon(player: Player, weaponType: String) {
+        when (weaponType) {
+            "iron_sword" -> {
+                if (player.hasAllItems("iron_ingot", 3, "stick", 1)) {
+                    player.takeItems("iron_ingot", 3, "stick", 1)
+                    player.giveItems("iron_sword", 1)
+                    player.sendMessage("§a合成成功: 铁剑")
+                } else {
+                    player.sendMessage("§c材料不足: 需要3个铁锭和1个木棍")
+                }
+            }
+
+            "magic_sword" -> {
+                if (player.hasAllItems("diamond", 2, "magic_crystal", 1, "ruby", 1)) {
+                    player.takeItems("diamond", 2, "magic_crystal", 1, "ruby", 1)
+                    player.giveItems("magic_sword", 1)
+                    player.sendMessage("§a§l合成成功: 魔法剑!")
+                } else {
+                    player.sendMessage("§c材料不足: 需要2个钻石、1个魔法水晶和1个红宝石")
+                }
+            }
+        }
+    }
+
+    // 药水合成
+    fun craftPotion(player: Player, potionType: String) {
+        when (potionType) {
+            "health_potion" -> {
+                if (player.hasAllItems("red_herb", 2, "water_bottle", 1)) {
+                    player.takeItems("red_herb", 2, "water_bottle", 1)
+                    player.giveItems("health_potion", 1)
+                    player.sendMessage("§a合成成功: 生命药水")
+                }
+            }
+
+            "mana_potion" -> {
+                if (player.hasAllItems("blue_herb", 2, "water_bottle", 1)) {
+                    player.takeItems("blue_herb", 2, "water_bottle", 1)
+                    player.giveItems("mana_potion", 1)
+                    player.sendMessage("§a合成成功: 魔法药水")
+                }
+            }
+        }
+    }
+}
