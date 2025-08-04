@@ -147,5 +147,12 @@ object Util {
         return this.hasAllItems(itemId1 to amount1, itemId2 to amount2)
     }
 
-
+// 获取和设置物品的自定义ID
+    var ItemStack.itemId: String
+        get() = this.itemMeta?.persistentDataContainer?.get(Recipe.itemId, PersistentDataType.STRING) ?: "unknown_item"
+        set(value) {
+            val meta = this.itemMeta ?: return
+            meta.persistentDataContainer.set(Recipe.itemId, PersistentDataType.STRING, value)
+            this.itemMeta = meta
+        }
 }

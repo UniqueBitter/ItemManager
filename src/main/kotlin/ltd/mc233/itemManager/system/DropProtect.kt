@@ -14,7 +14,6 @@ object DropProtect {
     fun drop(event: PlayerDropItemEvent) {
         val item = event.itemDrop.itemStack
         val meta = item.itemMeta ?: return
-
         // 检查物品是否有丢弃保护
         val isProtected = meta.persistentDataContainer.get(drop, PersistentDataType.BOOLEAN) ?: false
         if (isProtected) {

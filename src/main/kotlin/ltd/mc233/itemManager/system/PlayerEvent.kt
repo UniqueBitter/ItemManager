@@ -15,6 +15,7 @@ object PlayerEvent {
         val player = event.player
         val item = event.item ?: return
         if (item.displayName == "§b朝露物品工具") {
+            event.isCancelled = true
             if (event.isLeftClick()) {
                 ChestMain.openchest(player)
             }

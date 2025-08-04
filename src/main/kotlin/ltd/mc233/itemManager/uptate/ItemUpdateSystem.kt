@@ -2,11 +2,11 @@ package ltd.mc233.itemManager.system
 
 import ltd.mc233.itemManager.api.ItemAPI
 import org.bukkit.entity.Player
+import org.bukkit.event.inventory.InventoryClickEvent
 import org.bukkit.inventory.ItemStack
 import org.bukkit.persistence.PersistentDataType
 import taboolib.common.platform.event.SubscribeEvent
 import taboolib.common.platform.function.submit
-import taboolib.module.lang.sendLang
 import java.util.*
 
 object ItemUpdateSystem {
@@ -18,11 +18,10 @@ object ItemUpdateSystem {
     private val silentUpdates = mutableSetOf<UUID>()
 
     // 更新单个物品 - 保持原有数量
-    private fun ItemStack.updateToLatest(): ItemStack {
+    private fun ItemStack.updateToLatest(): ItemStack? {
         val customId = itemMeta?.persistentDataContainer?.get(Recipe.itemId, PersistentDataType.STRING)
-            ?: return this
-
-        val latest = ItemAPI.getItemById(customId) ?: return this
+            ?: return null
+        val latest = ItemAPI.getItemById(customId)?.clone() ?: return null // 重要：克隆模板
         latest.amount = this.amount // 保持原有数量
         return latest
     }
@@ -38,7 +37,7 @@ object ItemUpdateSystem {
             inventory.contents.forEachIndexed { index, item ->
                 if (item?.hasCustomId() == true) {
                     val updated = item.updateToLatest()
-                    if (updated != item) {
+                    if (updated != null && !item.isSimilar(updated)) {
                         inventory.setItem(index, updated)
                         count++
                     }
@@ -72,7 +71,6 @@ object ItemUpdateSystem {
         player.updateItemsSilently()
     }
 
-    // 监听事件 - 只在真正需要的时候触发
     @SubscribeEvent
     fun onJoin(event: org.bukkit.event.player.PlayerJoinEvent) {
         // 登录时静默更新，延迟3秒避免干扰登录流程
@@ -84,13 +82,10 @@ object ItemUpdateSystem {
     @SubscribeEvent
     fun onInventoryClick(event: org.bukkit.event.inventory.InventoryClickEvent) {
         val player = event.whoClicked as? Player ?: return
-        val item = event.currentItem ?: return
-        // 检查是否是自定义物品
-        val customId = item.itemMeta?.persistentDataContainer?.get(
-            Recipe.itemId, PersistentDataType.STRING
-        ) ?: return
-        // 延迟更新
+
+        // 延迟更新背包内所有物品
         submit(delay = 1) {
+            cooldowns.remove(player.uniqueId) // 无视冷却
             player.updateItems(silent = true)
         }
     }

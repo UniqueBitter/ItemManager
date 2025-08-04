@@ -15,7 +15,7 @@ import taboolib.expansion.createHelper
 import taboolib.library.xseries.XMaterial
 import taboolib.platform.util.buildItem
 
-@CommandHeader("ubitem", aliases = [""], permission = "panling.use")
+@CommandHeader("item", aliases = ["dewitem"], permission = "panling.use")
 object Item {
     @CommandBody(permission = "panling.admin")
     val main = mainCommand {
@@ -54,13 +54,10 @@ object Item {
     val update = subCommand {
         execute<Player> { sender, _, _ ->
             sender.sendMessage("§e正在更新全服玩家物品...")
-
             val onlineCount = Bukkit.getOnlinePlayers().size
             sender.sendMessage("§7当前在线玩家: §f${onlineCount}人")
-
             // 静默更新所有玩家
             updateAllPlayersItems(silent = true)
-
             sender.sendMessage("§a已发送更新指令到所有在线玩家!")
             sender.sendMessage("§7更新将在后台静默进行，玩家无感知")
         }
