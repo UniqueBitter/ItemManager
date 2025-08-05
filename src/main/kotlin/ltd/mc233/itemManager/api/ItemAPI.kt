@@ -47,7 +47,7 @@ object ItemAPI {
     // 根据物品ID获取物品模板
     fun getItemById(itemId: String): ItemStack? {
         // 遍历所有区域查找具有指定ID的物品
-        for (region in Regions.values()) {
+        for (region in Regions.entries) {
             val items = getItems(region)
             for (item in items.values) {
                 val storedId = item.itemMeta?.persistentDataContainer?.get(
@@ -149,7 +149,7 @@ object ItemAPI {
     // 获取所有已注册的物品ID列表
     fun getAllItemIds(): List<String> {
         val itemIds = mutableListOf<String>()
-        for (region in Regions.values()) {
+        for (region in Regions.entries) {
             val items = getItems(region)
             for (item in items.values) {
                 val storedId = item.itemMeta?.persistentDataContainer?.get(

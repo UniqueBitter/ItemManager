@@ -116,21 +116,9 @@ object Screen {
         }) {
             isCancelled = true
         }
-
-        // 清空区域
-        set(bottomRow + 7, buildItem(XMaterial.LAVA_BUCKET) {
-            name = "§c清空区域"
-            lore += "§7点击清空当前区域所有物品"
-            lore += "§c§l注意: 此操作不可撤销!"
-        }) {
+        set(bottomRow + 7, ItemCache.bar) {
             isCancelled = true
-            tempItems[player.uniqueId]!!.clear()
-            val emptyInv = org.bukkit.Bukkit.createInventory(null, 9)
-            ItemAPI.saveItems(region, emptyInv)
-            player.sendMessage("§a已清空 ${region.displayName} §a区域的所有物品!")
-            open(player, region, 0)
         }
-
         // 下一页
         if (currentPage < totalPages - 1) {
             set(bottomRow + 8, buildItem(ItemCache.nextPage) {
